@@ -67,29 +67,3 @@
 (defmacro lexical-do
   [& body]
   `(do ~@(reshape-recur {} body)))
-
-(def foo (macroexpand-1
-          '(lexical-do
-            (let [counter
-                  ((fn []
-                     (define c 0)
-                     (fn []
-                       (setq c (+ c 1))
-                       c)))]))))
-(def bar '(lexical-do
-            (let [counter
-                  ((fn []
-                     (define c 0)
-                     (fn []
-                       (setq c (+ c 1))
-                       c)))])))
-;; (lexical-do
-;;  (let [counter
-;;        ((fn []
-;;           (define c 0)
-;;           (fn []
-;;             (setq c (+ c 1))
-;;             c)))]
-;;    (counter)
-;;    (counter)
-;;    (counter)))
