@@ -56,7 +56,7 @@
               (first input))
               (reshape-recur vars (rest input))),
        true
-       (((fn [] (if (vector? input) #(apply vector (cons %1 %2)) cons)))
+       ((if (vector? input) #(apply vector (cons %1 %2)) cons)
         (reshape-recur vars (first input))
         (reshape-recur vars (rest input)))))
     (if-let [sub (get vars input)]
