@@ -1,66 +1,72 @@
 (ns lexical-scope.deep-lexical)
 
-(defn transform-define
-  "transform item from (define a) to (def <some symbol> nil)"
-  [sym value-handler [_ _ & [value]]]
-  `(def ~sym (~'atom ~(value-handler value))))
-
-(defn transform-setq
-  "transform item from (setq a 1) to (reset! a 1)"
-  [sym value-handler [_ _ & [value]]]
-  `(~'reset! ~sym ~(value-handler value)))
-
-
 (defmacro cdddr [item] `(next (next (next ~item))))
 
-(defn predicate-define
-  "determin if we met a (define blahblah~~)"
-  [item]
-  (if (and (seq? item)
-           (= 'define (first item))
-           (symbol? (second item))
-       ;which means there's only 3 elements or less
-           (= nil (cdddr item)))
-    (second item)))
+(def reshape-recur)
 
-(defn predicate-setq
-  "determin if we met a (setq blah blah~~)"
-  [item]
-  (if (and (seq? item)
-           (= 'setq (first item))
-           (symbol? (second item))
-           (= nil (cdddr item)))
-    (second item)))
+(defn expand-tester
+  [vars input]
+  (if (seq? (first input))
+    (first (first input))))
+
+(defmulti expand
+  expand-tester)
+
+(defmethod expand :default
+  [vars input]
+  (cons
+   (reshape-recur vars (first input))
+   (reshape-recur vars (rest input))))
+
+(defmethod expand 'define
+  [vars [[_ name value] & rst]]
+  (let [sym (gensym),
+        new-vars (assoc vars name sym)]
+    (cons `(~'def ~sym (~'atom ~(reshape-recur vars value)))
+          (reshape-recur new-vars rst))))
+
+(defmethod expand 'setq
+  [vars [[_ name value] & rst]]
+  (cons `(~'reset! ~(get vars name) ~(reshape-recur vars value))
+        (reshape-recur vars rst)))
+
+(defn combine-pair-map
+  [new-pair map-to-combine]
+  {'pairs (concat new-pair (get map-to-combine 'pairs))
+   'body (get map-to-combine 'body)})
+
+(defn parse-pairs
+  [vars pairs body]
+  (if (= [] pairs)
+    {'pairs [] 'body (reshape-recur vars body)}
+    (let [left (first pairs),
+          right (second pairs)]
+      (let [new-vars
+            (if (get vars left)
+              (assoc vars left left)
+              vars)]
+        (combine-pair-map
+         [left (reshape-recur vars right)]
+         (parse-pairs new-vars (rest (rest pairs)) body))))))
+
+(defmethod expand 'let
+  [vars [[_ pairs & body] & rst]]
+  (cons
+   (let [ret (parse-pairs vars pairs body)]
+     `(~'let ~(apply vector (get ret 'pairs)) ~@(get ret 'body)))
+   (reshape-recur vars rst)))
 
 
 (defn reshape-recur
   [vars input]
   (if (and
        (not= '() input)
-       (or (vector? input) (seq? input)))
-    (let [new-name (predicate-define (first input))
-          old-name (predicate-setq (first input))]
-      (cond
-       new-name
-       (let [sym (gensym)
-             new-vars (assoc vars new-name sym)]
-         (cons (transform-define
-                sym
-                #(reshape-recur vars %)
-                (first input))
-               (reshape-recur new-vars (rest input)))),
-       old-name
-       (cons (transform-setq
-              (get vars old-name)
-              #(reshape-recur vars %)
-              (first input))
-              (reshape-recur vars (rest input))),
-       true
-       ((if (vector? input) #(apply vector (cons %1 %2)) cons)
-        (reshape-recur vars (first input))
-        (reshape-recur vars (rest input)))))
+       (seq? input))
+    (expand vars input)
     (if-let [sub (get vars input)]
-      `(~'deref ~sub)
+      (if (= sub input)
+        input
+        `(~'deref ~sub))
       input)))
 
 

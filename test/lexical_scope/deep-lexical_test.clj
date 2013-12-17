@@ -16,4 +16,13 @@
          (counter)
          (counter)
          (counter)))
-      3))))
+      3))
+    (is
+     (=
+      (lexical-do
+       (define a 1)
+       (let [b (+ a 1)
+             a 3]
+         (* a b)
+         ))
+      6))))
