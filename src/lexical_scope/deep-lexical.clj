@@ -1,16 +1,15 @@
 (ns lexical-scope.deep-lexical)
 
-(defmacro cdddr [item] `(next (next (next ~item))))
 
 (def reshape-recur)
 
-(defn expand-tester
+(defn expand-dispatcher
   [vars input]
   (if (seq? (first input))
     (first (first input))))
 
 (defmulti expand
-  expand-tester)
+  expand-dispatcher)
 
 (defmethod expand :default
   [vars input]
